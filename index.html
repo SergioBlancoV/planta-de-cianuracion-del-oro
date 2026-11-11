@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>Planta de cianuración</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+<style>
+/* Layout: panel de control a la izquierda, diagrama de planta y resultados a la derecha; tablero de operación sobrio con el oro como único acento */
+:root{
+  --bg:#f1f2ee; --panel:#fafaf7; --ink:#1b262d; --muted:#5a676e; --line:#d2d7cf; --soft:#e6e9e2;
+  --au:#94650a; --au-tint:#f3e7cc; --sol:#2c6a9a; --ore:#6d7c86; --good:#2f7a4a; --warn:#a66d08; --crit:#b0362f;
+  --sans:"Archivo","Helvetica Neue",Arial,sans-serif; --serif:"Source Serif 4",Georgia,serif;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#141a1e; --panel:#1b2328; --ink:#e3e8e2; --muted:#9aa7ad; --line:#2f3c43; --soft:#222c32;
+  --au:#e2ad45; --au-tint:#3a2f17; --sol:#6ea9d8; --ore:#8a99a3; --good:#6cc08a; --warn:#e0a640; --crit:#e3756d; color-scheme:dark; } }
+:root[data-theme="dark"]{
+  --bg:#141a1e; --panel:#1b2328; --ink:#e3e8e2; --muted:#9aa7ad; --line:#2f3c43; --soft:#222c32;
+  --au:#e2ad45; --au-tint:#3a2f17; --sol:#6ea9d8; --ore:#8a99a3; --good:#6cc08a; --warn:#e0a640; --crit:#e3756d; color-scheme:dark; }
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.5;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 40px}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+h1,h2,h3{text-wrap:balance;line-height:1.2;margin:0}
+.wrap{max-width:1380px;margin:0 auto}
+header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line);padding-block:12px;display:flex;flex-wrap:wrap;gap:10px 20px;align-items:center}
+header.top h1{font-size:1.3rem;font-weight:700;letter-spacing:-.01em}
+header.top .sub{color:var(--muted);font-size:.86rem}
+.presets{display:flex;flex-wrap:wrap;gap:6px;margin-left:auto}
+.chip{font:inherit;font-size:.8rem;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:6px 11px;border-radius:999px;cursor:pointer}
+.chip[aria-pressed="true"]{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+.chip:focus-visible,input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid var(--sol);outline-offset:2px}
+.kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin:16px 0}
+.kpi{background:var(--panel);padding:12px 14px;min-width:0}
+.kpi .k{font-size:.75rem;color:var(--muted)}
+.kpi .v{font-size:1.45rem;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.01em;white-space:nowrap}
+.kpi .v small{font-size:.75rem;font-weight:500;color:var(--muted);margin-left:3px}
+.kpi.main .v{color:var(--au)}
+.pill{display:inline-block;font-size:.74rem;font-weight:600;padding:2px 8px;border-radius:999px;border:1px solid currentColor;margin-top:4px}
+.pill.good{color:var(--good)} .pill.warn{color:var(--warn)} .pill.crit{color:var(--crit)} .pill.info{color:var(--sol)}
+@media (max-width:1100px){.kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:560px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.grid{display:grid;grid-template-columns:320px minmax(0,1fr);gap:20px;align-items:start}
+@media (max-width:980px){.grid{grid-template-columns:1fr}}
+.grid>*{min-width:0}
+.scroll svg#flow{min-width:760px}
+@media (max-width:560px){.kpi .v{font-size:1.15rem}}
+aside.controls{position:sticky;top:calc(env(safe-area-inset-top,0px) + 70px);max-height:calc(100vh - 90px);overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:6px 14px 14px}
+@media (max-width:980px){aside.controls{position:static;max-height:none}}
+fieldset{border:0;border-top:1px solid var(--line);margin:0;padding:12px 0 4px}
+fieldset:first-of-type{border-top:0}
+legend{font-weight:700;font-size:.85rem;padding:0}
+.ctl{margin:9px 0}
+.ctl label{display:flex;justify-content:space-between;gap:8px;font-size:.82rem;margin-bottom:2px}
+.ctl output{font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+.ctl input[type=range]{width:100%;accent-color:var(--au)}
+.ctl select{width:100%;font:inherit;font-size:.85rem;padding:5px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)}
+.ctl .note{font-size:.74rem;color:var(--muted);margin-top:1px}
+.prices{display:grid;grid-template-columns:1fr 92px;gap:6px 8px;align-items:center;font-size:.8rem}
+.prices input{font:inherit;font-size:.8rem;width:100%;padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);text-align:right;font-variant-numeric:tabular-nums}
+main section{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin-bottom:16px;min-width:0}
+main section h2{font-size:1.05rem;font-weight:700;margin-bottom:4px}
+main section .lead{color:var(--muted);font-size:.86rem;margin:0 0 10px;max-width:80ch}
+.scroll{overflow-x:auto}
+svg.chart{width:100%;height:auto;display:block;font-family:var(--sans)}
+svg text{fill:var(--muted);font-size:11px}
+svg .grid line{stroke:var(--line)}
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px}
+@media (max-width:760px){.two{grid-template-columns:1fr}}
+h3{font-size:.9rem;font-weight:700;margin:4px 0 6px}
+table{border-collapse:collapse;width:100%;font-size:.82rem;font-variant-numeric:tabular-nums}
+th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left;white-space:normal}
+th{color:var(--muted);font-weight:600}
+tr.tot td{font-weight:700;border-top:2px solid var(--line)}
+.closure{font-size:.82rem;margin-top:8px}
+.legend{display:flex;flex-wrap:wrap;gap:12px;font-size:.76rem;color:var(--muted);margin-top:4px}
+.legend i{display:inline-block;width:14px;height:10px;border-radius:2px;vertical-align:middle;margin-right:5px}
+.sweepbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:.82rem;margin-bottom:6px}
+.sweepbar select{font:inherit;font-size:.82rem;padding:4px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)}
+details.model{font-family:var(--serif);font-size:.95rem;line-height:1.6}
+details.model summary{font-family:var(--sans);font-weight:700;cursor:pointer;font-size:1.05rem}
+details.model p,details.model li{max-width:78ch}
+.eq{font-family:var(--serif);background:var(--soft);border-radius:8px;padding:8px 12px;margin:8px 0;overflow-x:auto;white-space:nowrap}
+.alert{border-left:3px solid var(--crit);padding:6px 10px;margin:8px 0 0;font-size:.82rem;background:var(--soft);border-radius:0 6px 6px 0}
+.alert.warn{border-left-color:var(--warn)}
+.btn{font:inherit;font-size:.8rem;border:1px solid var(--line);background:transparent;color:var(--ink);padding:6px 10px;border-radius:8px;cursor:pointer}
+footer{color:var(--muted);font-size:.8rem;margin-top:10px}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+<header class="top">
+  <div>
+    <h1>Planta de cianuración</h1>
+    <div class="sub">Simulador de lixiviación de oro con cianuro · escala de pequeña minería</div>
+  </div>
+  <div class="presets" role="group" aria-label="Casos de partida">
+    <button class="chip" data-preset="salas" type="button">Ponce Enríquez · Salas et al. 2021</button>
+    <button class="chip" data-preset="tipica" type="button">Planta típica 30 t/d</button>
+    <button class="chip" data-preset="optima" type="button">Planta típica optimizada</button>
+  </div>
+</header>
+
+<div class="kpis" id="kpis"></div>
+
+<div class="grid">
+  <aside class="controls" id="controls" aria-label="Parámetros de operación"></aside>
+  <main>
+    <section>
+      <h2>Diagrama de flujo</h2>
+      <p class="lead" id="flowLead">Corrientes por día. Los números se recalculan al mover cualquier parámetro.</p>
+      <div class="scroll"><svg id="flow" class="chart" viewBox="0 0 1200 330" role="img" aria-label="Diagrama de flujo de la planta"></svg></div>
+      <div id="alerts"></div>
+    </section>
+
+    <section>
+      <h2>Cinética de lixiviación</h2>
+      <p class="lead" id="kinLead"></p>
+      <div class="two">
+        <div>
+          <h3>Extracción de oro acumulada a la salida de cada tanque</h3>
+          <svg id="chTank" class="chart" viewBox="0 0 520 260"></svg>
+        </div>
+        <div>
+          <h3>Extracción por tamaño de partícula del mineral</h3>
+          <svg id="chSize" class="chart" viewBox="0 0 520 260"></svg>
+          <div class="legend"><span><i style="background:var(--au)"></i>Extracción</span><span><i style="background:var(--ore);opacity:.45"></i>Masa de mineral en la clase (escala relativa)</span></div>
+        </div>
+      </div>
+      <div class="two" style="margin-top:14px">
+        <div>
+          <h3>¿Quién limita: cianuro u oxígeno?</h3>
+          <svg id="chRatio" class="chart" viewBox="0 0 520 136"></svg>
+          <p class="lead" style="margin-top:4px" id="ratioText"></p>
+        </div>
+        <div>
+          <h3>Seguridad: especiación del cianuro con el pH</h3>
+          <svg id="chHCN" class="chart" viewBox="0 0 520 150"></svg>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Análisis de sensibilidad</h2>
+      <div class="sweepbar"><label for="sweepVar">Variar</label><select id="sweepVar">
+        <option value="nacn">Concentración de NaCN</option><option value="p80">Molienda, P80</option><option value="tau">Tiempo de residencia total</option>
+        <option value="od">Oxígeno disuelto (inyección de O₂)</option><option value="T">Temperatura de la pulpa</option><option value="ntk">Número de tanques</option><option value="pw">Potencia de agitación</option></select>
+        <span id="sweepNote" style="color:var(--muted)"></span></div>
+      <div class="two">
+        <div><h3>Recuperación global de oro</h3><svg id="chSw1" class="chart" viewBox="0 0 520 240"></svg></div>
+        <div><h3>Margen operativo diario</h3><svg id="chSw2" class="chart" viewBox="0 0 520 240"></svg></div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Balance de masa</h2>
+      <p class="lead">Base diaria. El oro que entra sale por cuatro caminos: doré, relave sólido, solución de relave y carbón sin eluir.</p>
+      <div class="two">
+        <div class="scroll"><h3>Oro</h3><table id="tAu"></table><div class="closure" id="closure"></div></div>
+        <div class="scroll"><h3>Cianuro de sodio</h3><table id="tCN"></table></div>
+      </div>
+      <div class="scroll" style="margin-top:14px"><h3>Corrientes principales</h3><table id="tStreams"></table></div>
+    </section>
+
+    <section>
+      <h2>Equipos</h2>
+      <div class="scroll"><table id="tEq"></table></div>
+    </section>
+
+    <section>
+      <h2>Economía de operación</h2>
+      <p class="lead">Precios de Salas et al. (2021), proveedores de Ecuador, 2020. El precio del oro del artículo es de agosto a octubre de 2020; actualízalo en el panel de parámetros.</p>
+      <div class="two">
+        <div class="scroll"><table id="tEco"></table></div>
+        <div><svg id="chCost" class="chart" viewBox="0 0 520 260"></svg></div>
+      </div>
+    </section>
+
+    <section>
+      <details class="model">
+        <summary>Modelo, supuestos y fuentes</summary>
+        <p><b>Mecanismo.</b> Disolución electroquímica del oro (ecuación de Elsner) controlada por la difusión de CN⁻ y O₂ a través de la capa límite que rodea cada grano o partícula portadora (capítulo 5). La velocidad por unidad de área es la de Habashi:</p>
+        <div class="eq">v = 2·D<sub>CN</sub>·D<sub>O₂</sub>·[CN⁻]·[O₂] / ( δ·( D<sub>CN</sub>[CN⁻] + 4·D<sub>O₂</sub>[O₂] ) ) &nbsp;&nbsp; mol Au/(cm²·s)</div>
+        <p><b>Capa límite.</b> δ = d<sub>p</sub>/Sh, con Sh = 2 + 0,6·Re<sup>1/2</sup>·Sc<sup>1/3</sup> (§5.4). Re se calcula con la velocidad de deslizamiento de la partícula en la pulpa (Stokes con corrección de Schiller–Naumann) y la viscosidad de la pulpa (correlación de Thomas en función de la fracción volumétrica de sólidos).</p>
+        <p><b>Grano libre y grano expuesto.</b> Si la partícula es más pequeña que el grano de oro, el grano está libre y se encoge con su propia capa límite: d(r²)/dt = −(M/ρ)·H·Sh, un núcleo que se encoge con control difusional (capítulos 3 y 5). Si el grano está dentro de una partícula de mineral, solo se ataca la fracción expuesta s de su superficie, que depende de la razón entre el tamaño de partícula y el del grano, como en Bazin et al.: s = 0,03 + 0,97/(1 + (d/d<sub>g</sub>)<sup>1,5</sup>).</p>
+        <p><b>Granulometría.</b> Distribución de Gaudin–Schumann con módulo 0,6, en 13 clases. El oro se reparte de forma uniforme en masa entre las clases.</p>
+        <p><b>Tanques.</b> N tanques agitados ideales en serie. La distribución de tiempos de residencia se integra con 200 trayectorias deterministas (secuencia de Halton). Una agitación por debajo de la de suspensión completa crea zonas muertas que reducen el volumen activo (idea de Bazin et al.).</p>
+        <p><b>Temperatura (capítulo 1).</b> D ∝ T/μ(T) (Stokes–Einstein), equivalente a una energía de activación de unos 18 kJ/mol. La solubilidad del O₂ en aire baja con la temperatura y con la altitud.</p>
+        <p><b>Cianuro.</b> El NaCN libre se mantiene en el valor fijado en todos los tanques, como con los controladores de Salas et al. Solo el CN⁻ lixivia; la fracción HCN depende del pH (pK<sub>a</sub> = 9,21). El consumo suma cuatro términos:</p>
+        <ul>
+          <li>cianicidas (pirita y calcopirita), con un modelo empírico de orden ½ en la concentración;</li>
+          <li>volatilización de HCN por la aireación;</li>
+          <li>complejación del oro;</li>
+          <li>el cianuro que sale con la solución de relave hacia destrucción.</li>
+        </ul>
+        <p><b>Adsorción y elución.</b> Eficiencias fijas, como las conversiones de Salas et al. (adsorción 0,87–0,89; elución 0,90–0,95).</p>
+        <p><b>Validación.</b></p>
+        <ul>
+          <li>Caso Ponce Enríquez: el modelo da 88,5 % de extracción en lixiviación, frente a la conversión de 0,88–0,90 que usa Salas et al. El tamaño de grano de 60 µm se ajustó para lograrlo.</li>
+          <li>Circuito de Bazin et al. (P80 76 µm, grano de 45 µm, 6 tanques, 18 h): da 91,8 % de extracción, frente al 94,9 % reportado.</li>
+        </ul>
+        <p><b>Límites.</b> Los resultados son orientativos y sirven para la enseñanza. El modelo tiene tres simplificaciones:</p>
+        <ul>
+          <li>No incluye pasivación, robo de oro por materia carbonosa ni la cinética de adsorción en carbón.</li>
+          <li>El consumo de cianuro por cianicidas es empírico.</li>
+          <li>Las energías de molienda (ley de Bond, W<sub>i</sub> = 14 kWh/t, F80 = 2 mm) y de aireación son estimaciones.</li>
+        </ul>
+        <p><b>Fuentes.</b></p>
+        <ul>
+          <li>Salas, Riascos, Otero (2021). Simulation-based analysis of hydrometallurgical processes. Case study: small-scale gold mining in Ecuador. <i>Minerals</i> 11, 534.</li>
+          <li>Bazin, Hodouin, Khalesi, Bellec, Egan, Duchesne. A gold leaching simulator for training to process analysis methods. IFAC.</li>
+          <li>Yahya, Ibrahim, Aziz, Suli (2020). Simulation of leaching process of gold by cyanidation. <i>IOP Conf. Ser.: Mater. Sci. Eng.</i> 736, 022111.</li>
+          <li>Ray &amp; Ray (2018). <i>Kinetics of Metallurgical Processes</i>, capítulos 1 a 5.</li>
+        </ul>
+      </details>
+    </section>
+    <footer>Simulador didáctico preparado por Sergio Blanco, PhD · Cinética de procesos metalúrgicos. El cianuro es letal: este simulador no reemplaza el diseño de ingeniería ni los protocolos de seguridad de una planta real.</footer>
+  </main>
+</div>
+</div>
+<script>
+// Modelo de lixiviación por cianuración — núcleo de cálculo
+const G = 980.665, M_AU = 196.97, RHO_AU = 19.3, MW_NACN = 49.007;
+function muW(Tc){ const T=Tc+273.15; return 2.414e-5*Math.pow(10,247.8/(T-140))*10; } // poise
+function o2sat(Tc,alt){ return (14.62-0.3898*Tc+0.006969*Tc*Tc-0.00005897*Tc*Tc*Tc)*Math.exp(-alt/8434); } // mg/L, aire
+function radInv(i,b){ let f=1,r=0; while(i>0){ f/=b; r+=f*(i%b); i=Math.floor(i/b);} return r; }
+const PRIMES=[2,3,5,7,11,13,17,19];
+function sim(p){
+  const Tc=p.T, TK=Tc+273.15, mu=muW(Tc), mu25=muW(25);
+  const DC=1.83e-5*(TK/298.15)*(mu25/mu), DO=2.76e-5*(TK/298.15)*(mu25/mu);
+  // mineralogía y pulpa
+  const qz=Math.max(0,100-p.pyr-p.cpy);
+  const rhos=100/(qz/2.65+p.pyr/5.01+p.cpy/4.19);
+  const w=p.sol/100, phi=(w/rhos)/((w/rhos)+(1-w)), rhop=1/(w/rhos+(1-w));
+  const mur=1+2.5*phi+10.05*phi*phi+0.00273*Math.exp(16.6*phi), mup=mu*mur, nup=mup/rhop, nus=mu/1.0;
+  const Sc=nus/DO;
+  // oxígeno y cianuro
+  const csat=o2sat(Tc,p.alt);
+  const OD = p.oxi==='aire' ? 0.99*csat : Math.min(p.od, 0.9*csat/0.2095);
+  const fCN=1/(1+Math.pow(10,9.21-p.ph));
+  const CC=p.nacn/MW_NACN*1e-6*fCN, CO=OD/32000*1e-3;
+  const H1=2*DC*DO*CC*CO/(DC*CC+4*DO*CO); // mol/cm/s (dividir por δ)
+  const Q=(M_AU/RHO_AU)*H1;               // cm²/s
+  const ratio=(CC/CO), ratioCrit=4*DO/DC; // control O2 si ratio > ratioCrit
+  // agitación y zonas muertas
+  const Pjs=100*Math.sqrt(phi/0.25);
+  const fdead=0.05+0.25*Math.max(0,1-p.pw/Pjs);
+  // granulometría (Gaudin–Schumann)
+  const m=0.6, k=p.p80/Math.pow(0.8,1/m), nb=12, dmin=k/300;
+  const edges=[0]; for(let i=0;i<=nb;i++) edges.push(dmin*Math.pow(k/dmin,i/nb));
+  const F=d=>Math.min(1,Math.pow(d/k,m));
+  const bins=[];
+  for(let i=0;i<edges.length-1;i++){ const lo=edges[i],hi=edges[i+1]; const d= lo===0? hi/Math.SQRT2 : Math.sqrt(lo*hi); bins.push({d,frac:F(hi)-F(lo)}); }
+  const Sh=(dp,rho)=>{ const dr=Math.max(0.01,rho-rhop); let v=G*dp*dp*dr/(18*mup); let Re=v*dp/nup; v=v/(1+0.15*Math.pow(Re,0.687)); Re=v*dp/nup; return 2+0.6*Math.sqrt(Re)*Math.cbrt(Sc); };
+  // trenes de tanques
+  const N=p.ntk, tauN=p.tau/N*3600, tauA=tauN*(1-fdead), M=200, nsub=6;
+  const perTank=new Array(N).fill(0); let extr=0;
+  bins.forEach(b=>{
+    const dcm=b.d*1e-4, free=b.d<=p.dg, r0=Math.min(p.dg,b.d)/2*1e-4;
+    const s= free?1:0.03+0.97/(1+Math.pow(b.d/p.dg,1.5));
+    b.s=s; b.free=free;
+    const acc=new Array(N).fill(0);
+    for(let i=1;i<=M;i++){
+      let r=r0;
+      for(let n=0;n<N;n++){
+        const u=radInv(i,PRIMES[n]); const t=-tauA*Math.log(1-u), dt=t/nsub;
+        for(let j=0;j<nsub && r>0;j++){
+          if(free){ const sh=Sh(2*r,RHO_AU); const r2=r*r-Q*sh*dt; r=r2>0?Math.sqrt(r2):0; }
+          else { const sh=Sh(dcm,rhos); r=Math.max(0,r-Q*s*sh/dcm*dt); }
+        }
+        acc[n]+=1-Math.pow(r/r0,3);
+      }
+    }
+    b.x=acc[N-1]/M; extr+=b.frac*b.x;
+    for(let n=0;n<N;n++) perTank[n]+=b.frac*acc[n]/M;
+  });
+  // balances
+  const tph=p.cap/24, QL=tph*(1-w)/w, Qv=tph/rhos+QL; // m3/h
+  const Vw=Qv*tauN/3600, Vnom=Vw/0.9, D=Math.cbrt(4*Vnom/(Math.PI*1.1));
+  const C=p.nacn/1000; // kg/m3 NaCN libre
+  const kc=0.002*p.pyr+0.04*p.cpy;
+  const VLtot=QL*p.tau; // m3 de solución en el tren
+  const consMin=kc*0.4*Math.sqrt(C/0.4)*VLtot/tph; // kg/t
+  const consVol=0.05*C*(1-fCN)*VLtot/tph;          // kg/t
+  const auIn=p.cap*p.ley; // g/d
+  const auLeach=auIn*extr, auRes=auIn-auLeach;
+  const consAu=auLeach/M_AU*2*MW_NACN/1000/p.cap; // kg/t
+  const consTail=C*QL/tph; // kg/t que salen con el relave hacia destrucción
+  const nacnT=consMin+consVol+consAu+consTail;
+  const auAds=auLeach*p.ads/100, auSolLoss=auLeach-auAds, auDore=auAds*p.elu/100, auCarb=auAds-auDore;
+  const rec=auDore/auIn;
+  // energía y costos
+  const Vtot=Vw*N, Pag=p.pw*Vtot/1000; // kW
+  const air=0.02*Vtot*60; // m3/h
+  const bond=x=>10*14*(1/Math.sqrt(x)-1/Math.sqrt(2000));
+  const Egr=bond(p.p80)*p.cap; // kWh/d
+  const Eag=Pag*24, Eair= p.oxi==='aire'? air*24*0.03:0;
+  const o2kg = p.oxi==='aire'?0:0.6*p.cap;
+  const cost={mineral:p.pmin*p.cap, nacn:nacnT*p.cap*p.pnacn, cal:p.cal*p.cap*p.pcal, carbon:p.carb/1000*p.cap*p.pcarb, o2:o2kg*p.po2,
+    energia:(Egr+Eag+Eair)*p.pel, agua:QL*24*p.pagua, residuos:p.pwaste*p.cap};
+  const costT=Object.values(cost).reduce((a,b)=>a+b,0), ingreso=auDore*p.pau;
+  return {DC,DO,rhos,rhop,phi,mup,OD,csat,fCN,CC,CO,ratio,ratioCrit,fdead,Pjs,bins,extr,perTank,tph,QL,Qv,Vw,Vnom,D,Vtot,Pag,air,Egr,Eag,Eair,o2kg,
+    consMin,consVol,consAu,consTail,nacnT,auIn,auLeach,auRes,auAds,auSolLoss,auDore,auCarb,rec,cost,costT,ingreso,margen:ingreso-costT,k,m};
+}
+
+
+(function(){
+"use strict";
+const $=id=>document.getElementById(id);
+const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const NF={}; const nf=(x,d=0)=>{ if(!isFinite(x)) return "–"; const k=d; NF[k]=NF[k]||new Intl.NumberFormat('es-CO',{minimumFractionDigits:d,maximumFractionDigits:d}); return NF[k].format(x); };
+const usd=x=>(x<0?"−":"")+"US$ "+nf(Math.abs(x),0);
+
+/* ---------- parámetros ---------- */
+const GROUPS=[
+ {name:"Mineral", ctl:[
+  {id:"cap",lab:"Capacidad",unit:"t/d",min:5,max:200,step:1},
+  {id:"ley",lab:"Ley de oro",unit:"g/t",min:1,max:100,step:0.5,d:1},
+  {id:"p80",lab:"Molienda, P80",unit:"µm",min:38,max:250,step:1},
+  {id:"dg",lab:"Tamaño de grano de oro",unit:"µm",min:10,max:150,step:1,note:"Diámetro medio de los granos de oro observados al microscopio"},
+  {id:"pyr",lab:"Pirita",unit:"%",min:0,max:60,step:0.5,d:1},
+  {id:"cpy",lab:"Calcopirita",unit:"%",min:0,max:5,step:0.1,d:1,note:"El resto del mineral es cuarzo"}]},
+ {name:"Pulpa y equipos", ctl:[
+  {id:"sol",lab:"Sólidos en la pulpa",unit:"% p/p",min:30,max:55,step:1},
+  {id:"ntk",lab:"Tanques de lixiviación",unit:"",min:1,max:8,step:1},
+  {id:"tau",lab:"Tiempo de residencia total",unit:"h",min:4,max:72,step:1},
+  {id:"pw",lab:"Potencia de agitación",unit:"W/m³",min:40,max:400,step:10}]},
+ {name:"Reactivos y condiciones", ctl:[
+  {id:"nacn",lab:"NaCN libre",unit:"mg/L",min:100,max:8000,log:true},
+  {id:"ph",lab:"pH",unit:"",min:9,max:12,step:0.1,d:1},
+  {id:"cal",lab:"Consumo de cal, Ca(OH)₂",unit:"kg/t",min:0.5,max:10,step:0.1,d:1},
+  {id:"oxi",lab:"Oxidante",type:"select",opts:[["aire","Aire"],["o2","Oxígeno puro"]]},
+  {id:"od",lab:"Oxígeno disuelto con O₂ puro",unit:"mg/L",min:8,max:30,step:0.5,d:1},
+  {id:"T",lab:"Temperatura de la pulpa",unit:"°C",min:10,max:45,step:1},
+  {id:"alt",lab:"Altitud de la planta",unit:"m",min:0,max:3000,step:50}]},
+ {name:"Recuperación", ctl:[
+  {id:"ads",lab:"Eficiencia de adsorción en carbón",unit:"%",min:80,max:99.5,step:0.5,d:1},
+  {id:"elu",lab:"Eficiencia de elución",unit:"%",min:85,max:99,step:0.5,d:1},
+  {id:"carb",lab:"Consumo de carbón activado",unit:"g/t",min:10,max:100,step:5}]}
+];
+const PRICES=[["pau","Oro (US$/g)"],["pmin","Mineral, regalías y transporte (US$/t)"],["pwaste","Tratamiento de efluentes (US$/t)"],["pnacn","NaCN (US$/kg)"],["pcal","Ca(OH)₂ (US$/kg)"],["pcarb","Carbón activado (US$/kg)"],["po2","Oxígeno (US$/kg)"],["pel","Electricidad (US$/kWh)"],["pagua","Agua (US$/m³)"]];
+const BASEPRICES={pau:62.5,pmin:100,pwaste:200,pnacn:3.10,pcal:0.32,pcarb:5.5,po2:0.15,pel:0.06,pagua:0.067};
+const PRESETS={
+ salas:{cap:50,ley:82,p80:120,dg:60,pyr:44.3,cpy:1.2,sol:50,ntk:2,tau:24,pw:200,nacn:7350,ph:11,cal:3,oxi:"aire",od:20,T:25,alt:0,ads:88,elu:92.5,carb:20},
+ tipica:{cap:30,ley:12,p80:75,dg:40,pyr:8,cpy:0.3,sol:45,ntk:4,tau:36,pw:200,nacn:500,ph:10.8,cal:2,oxi:"aire",od:20,T:25,alt:1000,ads:95,elu:95,carb:30},
+ optima:{cap:30,ley:12,p80:75,dg:40,pyr:8,cpy:0.3,sol:45,ntk:4,tau:24,pw:200,nacn:300,ph:10.8,cal:2,oxi:"o2",od:20,T:25,alt:1000,ads:97,elu:96,carb:30}
+};
+let P={...PRESETS.salas,...BASEPRICES}, current="salas";
+
+/* ---------- controles ---------- */
+const logTo=x=>Math.round(100*Math.pow(80,x/1000)/10)*10, toLog=v=>Math.round(1000*Math.log(v/100)/Math.log(80));
+function buildControls(){
+  const host=$("controls"); let h="";
+  GROUPS.forEach(g=>{ h+=`<fieldset><legend>${g.name}</legend>`;
+    g.ctl.forEach(c=>{
+      if(c.type==="select"){ h+=`<div class="ctl" id="w_${c.id}"><label for="c_${c.id}">${c.lab}</label><select id="c_${c.id}">${c.opts.map(o=>`<option value="${o[0]}">${o[1]}</option>`).join("")}</select></div>`; return; }
+      const r=c.log?`min="0" max="1000" step="1"`:`min="${c.min}" max="${c.max}" step="${c.step}"`;
+      h+=`<div class="ctl" id="w_${c.id}"><label for="c_${c.id}"><span>${c.lab}</span><output id="o_${c.id}"></output></label><input type="range" id="c_${c.id}" ${r}>${c.note?`<div class="note">${c.note}</div>`:""}${c.id==="nacn"?`<div class="note" id="nacnNote"></div>`:""}</div>`;
+    }); h+=`</fieldset>`; });
+  h+=`<fieldset><legend>Precios</legend><div class="prices">${PRICES.map(p=>`<label for="c_${p[0]}">${p[1]}</label><input id="c_${p[0]}" type="number" step="any" min="0">`).join("")}</div><div class="note" style="font-size:.74rem;color:var(--muted);margin-top:6px">Salas et al. (2021). El precio del oro es de 2020.</div></fieldset>`;
+  host.innerHTML=h;
+  GROUPS.forEach(g=>g.ctl.forEach(c=>{ const el=$("c_"+c.id); el.addEventListener("input",()=>{ P[c.id]= c.type==="select"? el.value : c.log? logTo(+el.value) : +el.value; markCustom(); update(); }); }));
+  PRICES.forEach(p=>{ const el=$("c_"+p[0]); el.addEventListener("input",()=>{ const v=parseFloat(el.value); if(isFinite(v)&&v>=0){ P[p[0]]=v; update(); } }); });
+}
+function syncControls(){
+  GROUPS.forEach(g=>g.ctl.forEach(c=>{ const el=$("c_"+c.id); if(c.type==="select") el.value=P[c.id]; else el.value= c.log? toLog(P[c.id]) : P[c.id]; }));
+  PRICES.forEach(p=>{ $("c_"+p[0]).value=P[p[0]]; });
+}
+function showOutputs(){
+  GROUPS.forEach(g=>g.ctl.forEach(c=>{ if(c.type==="select") return; const o=$("o_"+c.id); o.textContent=nf(P[c.id],c.d||0)+(c.unit?" "+c.unit:""); }));
+  $("w_od").hidden = P.oxi!=="o2";
+}
+function markCustom(){ current=null; document.querySelectorAll("[data-preset]").forEach(b=>b.setAttribute("aria-pressed","false")); }
+document.querySelectorAll("[data-preset]").forEach(b=>b.addEventListener("click",()=>{ current=b.dataset.preset; P={...P,...PRESETS[current]}; syncControls(); document.querySelectorAll("[data-preset]").forEach(x=>x.setAttribute("aria-pressed",x===b?"true":"false")); update(); }));
+
+/* ---------- gráficos ---------- */
+function nice(min,max,n){ const s=(max-min)/n, m=Math.pow(10,Math.floor(Math.log10(s))), e=s/m, st=(e>=7.5?10:e>=3.5?5:e>=1.5?2:1)*m; const t=[]; for(let v=Math.ceil(min/st)*st; v<=max+1e-9; v+=st) t.push(+v.toFixed(10)); return t; }
+function axes(o){ // devuelve {X,Y,s}
+  const W=o.W,H=o.H,l=o.l||52,r=o.r||14,t=o.t||14,b=o.b||38, pw=W-l-r, ph=H-t-b;
+  const X=v=>o.xlog? l+(Math.log10(v)-Math.log10(o.x0))/(Math.log10(o.x1)-Math.log10(o.x0))*pw : l+(v-o.x0)/(o.x1-o.x0)*pw;
+  const Y=v=>t+ph-(v-o.y0)/(o.y1-o.y0)*ph;
+  let s=`<g class="grid">`;
+  (o.yt||nice(o.y0,o.y1,4)).forEach(v=>{ s+=`<line x1="${l}" x2="${l+pw}" y1="${Y(v)}" y2="${Y(v)}"/>`; });
+  s+=`</g>`;
+  (o.yt||nice(o.y0,o.y1,4)).forEach(v=>{ s+=`<text x="${l-6}" y="${Y(v)+4}" text-anchor="end">${o.yf?o.yf(v):nf(v)}</text>`; });
+  if(o.xt) o.xt.forEach(v=>{ s+=`<text x="${X(v)}" y="${t+ph+16}" text-anchor="middle">${o.xf?o.xf(v):nf(v)}</text>`; });
+  s+=`<line x1="${l}" x2="${l+pw}" y1="${t+ph}" y2="${t+ph}" stroke="${css('--muted')}"/>`;
+  if(o.xl) s+=`<text x="${l+pw/2}" y="${H-4}" text-anchor="middle" style="fill:${css('--ink')}">${o.xl}</text>`;
+  if(o.yl) s+=`<text transform="translate(12,${t+ph/2}) rotate(-90)" text-anchor="middle" style="fill:${css('--ink')}">${o.yl}</text>`;
+  return {X,Y,s,l,t,pw,ph};
+}
+
+/* ---------- diagrama de flujo ---------- */
+function drawFlow(R){
+  const ink=css('--ink'),mut=css('--muted'),line=css('--line'),au=css('--au'),tint=css('--au-tint'),sol=css('--sol'),panel=css('--panel'),soft=css('--soft');
+  const yM=150, bh=78;
+  const box=(x,w,title,l1,l2,accent)=>`<g><rect x="${x}" y="${yM-bh/2}" width="${w}" height="${bh}" rx="8" fill="${accent?tint:panel}" stroke="${accent?au:mut}" stroke-width="${accent?2:1.2}"/><text x="${x+w/2}" y="${yM-12}" text-anchor="middle" style="fill:${ink};font-size:13px;font-weight:600">${title}</text><text x="${x+w/2}" y="${yM+8}" text-anchor="middle" style="fill:${ink};font-size:12px">${l1}</text><text x="${x+w/2}" y="${yM+24}" text-anchor="middle" style="font-size:11px">${l2}</text></g>`;
+  const arr=(x1,y1,x2,y2,c)=>`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${c||mut}" stroke-width="1.4" marker-end="url(#ah)"/>`;
+  const top=(x,label,val)=>`<text x="${x}" y="30" text-anchor="middle" style="fill:${ink};font-size:12px;font-weight:600">${label}</text><text x="${x}" y="45" text-anchor="middle" style="font-size:11px">${val}</text>${arr(x,52,x,yM-bh/2-2)}`;
+  let s=`<defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="${mut}"/></marker><marker id="ahs" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="${sol}"/></marker></defs>`;
+  s+=box(10,132,"Mineral",`${nf(P.cap)} t/d · ${nf(P.ley,1)} g/t`,`${nf(R.auIn/1000,2)} kg Au/d`);
+  s+=arr(142,yM,162,yM);
+  s+=box(164,124,"Molienda",`P80 ${nf(P.p80)} µm`,`${nf(R.Egr/P.cap,1)} kWh/t (Bond)`);
+  s+=arr(288,yM,308,yM);
+  s+=box(310,166,"Acondicionamiento",`pH ${nf(P.ph,1)} · ${nf(P.sol)} % sólidos`,`agua ${nf(R.QL*24)} m³/d`);
+  s+=top(393,"Cal",`${nf(P.cal*P.cap)} kg/d`);
+  // tanques
+  const x0=504, x1=820, N=P.ntk, gap=8, tw=Math.min(56,(x1-x0-(N-1)*gap)/N), totalW=N*tw+(N-1)*gap, sx=x0+(x1-x0-totalW)/2;
+  s+=arr(476,yM,sx-4,yM);
+  s+=`<text x="${(x0+x1)/2}" y="${yM+70}" text-anchor="middle" style="fill:${ink};font-size:13px;font-weight:600">Lixiviación · ${N} tanque${N>1?"s":""} de ${nf(R.Vnom,1)} m³</text>`;
+  for(let n=0;n<N;n++){ const x=sx+n*(tw+gap), y=yM-28, h=62, f=R.perTank[n];
+    s+=`<rect x="${x}" y="${y}" width="${tw}" height="${h}" rx="6" fill="${panel}" stroke="${mut}" stroke-width="1.2"/>`;
+    s+=`<rect x="${x+1}" y="${y+h-1-(h-2)*f}" width="${tw-2}" height="${(h-2)*f}" rx="5" fill="${au}" fill-opacity="0.22"/>`;
+    s+=`<line x1="${x+tw/2}" y1="${y-6}" x2="${x+tw/2}" y2="${y+h-14}" stroke="${ink}" stroke-width="1.4"/><line x1="${x+tw/2-9}" y1="${y+h-14}" x2="${x+tw/2+9}" y2="${y+h-14}" stroke="${ink}" stroke-width="2"/>`;
+    s+=`<text x="${x+tw/2}" y="${y+h+15}" text-anchor="middle" style="fill:${ink};font-size:11px;font-weight:600">${nf(f*100,0)} %</text>`;
+    if(n<N-1) s+=`<line x1="${x+tw}" y1="${yM}" x2="${x+tw+gap}" y2="${yM}" stroke="${mut}" stroke-width="1.4"/>`;
+  }
+  s+=`<text x="${(x0+x1)/2}" y="${yM+86}" text-anchor="middle" style="font-size:11px">τ ${nf(P.tau)} h · % = extracción acumulada al salir de cada tanque</text>`;
+  s+=top(610,"NaCN",`${nf(R.nacnT*P.cap)} kg/d`);
+  s+=top(730,P.oxi==="aire"?"Aire":"Oxígeno",P.oxi==="aire"?`${nf(R.air)} m³/h · OD ${nf(R.OD,1)} mg/L`:`${nf(R.o2kg)} kg/d · OD ${nf(R.OD,1)} mg/L`);
+  s+=arr(sx+totalW+4,yM,844,yM);
+  s+=box(846,150,"Adsorción CIP",`3 tanques · ${nf(P.ads,1)} %`,`Au en carbón ${nf(R.auAds)} g/d`);
+  s+=top(921,"Carbón",`${nf(P.carb*P.cap/1000,1)} kg/d`);
+  s+=arr(996,yM,1014,yM);
+  s+=box(1016,174,"Elución y electroobtención",`Doré ${nf(R.auDore)} g Au/d`,`elución ${nf(P.elu,1)} %`,true);
+  // relaves
+  const yB=282;
+  s+=`<path d="M921 ${yM+bh/2} V${yB-18}" fill="none" stroke="${sol}" stroke-width="1.4" marker-end="url(#ahs)"/>`;
+  s+=`<rect x="831" y="${yB-18}" width="180" height="40" rx="8" fill="${panel}" stroke="${sol}" stroke-width="1.2"/><text x="921" y="${yB-1}" text-anchor="middle" style="fill:${ink};font-size:12px;font-weight:600">Destrucción de cianuro</text><text x="921" y="${yB+14}" text-anchor="middle" style="font-size:11px">${nf(R.consTail*P.cap)} kg NaCN/d a destruir</text>`;
+  s+=`<path d="M831 ${yB+2} H652" fill="none" stroke="${sol}" stroke-width="1.4" marker-end="url(#ahs)"/>`;
+  s+=`<rect x="420" y="${yB-18}" width="230" height="40" rx="8" fill="${soft}" stroke="${mut}" stroke-width="1.2"/><text x="535" y="${yB-1}" text-anchor="middle" style="fill:${ink};font-size:12px;font-weight:600">Relavera</text><text x="535" y="${yB+14}" text-anchor="middle" style="font-size:11px">${nf(R.auRes/P.cap,2)} g Au/t en sólidos · ${nf(R.auSolLoss/(R.QL*24),2)} mg/L</text>`;
+  s+=`<text x="${929}" y="${yM+bh/2+22}" style="font-size:11px;fill:${sol}">pulpa agotada</text>`;
+  $("flow").innerHTML=s;
+}
+
+/* ---------- KPIs y alertas ---------- */
+function controlling(R){ const x=R.ratio/R.ratioCrit; return x>1.5?{t:"Controla el oxígeno",c:"info"}:x<0.67?{t:"Controla el cianuro",c:"info"}:{t:"Control mixto CN⁻/O₂",c:"info"}; }
+function drawKPIs(R){
+  const hcn=(1-R.fCN)*100, ctl=controlling(R);
+  const hc= P.ph<9.8?"crit":P.ph<10.5?"warn":"good";
+  const tiles=[
+   ["Recuperación global",nf(R.rec*100,1),"%",true],
+   ["Oro en doré",nf(R.auDore),"g/d"],
+   ["Extracción en lixiviación",nf(R.extr*100,1),"%"],
+   ["Consumo de NaCN",nf(R.nacnT,2),"kg/t"],
+   ["Margen operativo",usd(R.margen),"/d"]
+  ];
+  let h=tiles.map(t=>`<div class="kpi${t[3]?" main":""}"><div class="k">${t[0]}</div><div class="v">${t[1]}<small>${t[2]}</small></div></div>`).join("");
+  h+=`<div class="kpi"><div class="k">Estado</div><span class="pill ${ctl.c}">${ctl.t}</span><br><span class="pill ${hc}">HCN ${nf(hcn,1)} % del cianuro libre</span></div>`;
+  $("kpis").innerHTML=h;
+  // alertas
+  const A=[];
+  if(P.ph<9.8) A.push(["crit",`pH ${nf(P.ph,1)}: el ${nf(hcn,0)} % del cianuro libre está como HCN, un gas letal. Sube el pH por encima de 10,5 con cal.`]);
+  else if(P.ph<10.5) A.push(["warn",`pH ${nf(P.ph,1)}: el ${nf(hcn,1)} % del cianuro está como HCN. La práctica segura es operar a pH 10,5–11.`]);
+  if(R.ratio>10*R.ratioCrit) A.push(["warn",`Hay ${nf(R.ratio/R.ratioCrit,0)} veces más cianuro del que el oxígeno puede aprovechar: subir el NaCN no acelera la disolución y el exceso termina en el relave (${nf(R.consTail,2)} kg/t a destruir).`]);
+  if(P.nacn>2000) A.push(["warn",`${nf(P.nacn)} mg/L de NaCN está muy por encima de la práctica habitual en plantas de tanques agitados, que suele estar en unos cientos de mg/L.`]);
+  if(R.fdead>0.06) A.push(["warn",`La agitación (${nf(P.pw)} W/m³) está por debajo de la necesaria para suspender los sólidos (≈ ${nf(R.Pjs)} W/m³): el ${nf(R.fdead*100,0)} % del volumen queda como zona muerta.`]);
+  $("alerts").innerHTML=A.map(a=>`<div class="alert ${a[0]==="warn"?"warn":""}">${a[1]}</div>`).join("");
+  const n=$("nacnNote"); n.textContent=`${nf(P.nacn/49.007/1000,4)} M · CN⁻ libre efectivo ${nf(P.nacn*R.fCN*26.02/49.007)} mg/L`;
+}
+
+/* ---------- cinética ---------- */
+function drawKinetics(R){
+  const au=css('--au'),ink=css('--ink'),ore=css('--ore'),sol=css('--sol'),crit=css('--crit'),good=css('--good'),panel=css('--panel');
+  const N=P.ntk, tn=P.tau/N;
+  // por tanque
+  let a=axes({W:520,H:260,x0:0,x1:N,y0:0,y1:100,yt:[0,20,40,60,80,100],xt:Array.from({length:N+1},(_,i)=>i),xf:i=>i===0?"alimento":`T${i}`,yl:"extracción de Au (%)",xl:"tanque (tiempo acumulado)",b:46});
+  let s=a.s, pts=[[0,0]].concat(R.perTank.map((v,i)=>[i+1,v*100]));
+  s+=`<path d="${pts.map((p,i)=>(i?"L":"M")+a.X(p[0])+","+a.Y(p[1])).join("")}" fill="none" stroke="${au}" stroke-width="2.6"/>`;
+  pts.forEach((p,i)=>{ s+=`<circle cx="${a.X(p[0])}" cy="${a.Y(p[1])}" r="4.5" fill="${au}" stroke="${panel}" stroke-width="2"/>`; if(i>0) s+=`<text x="${a.X(p[0])}" y="${a.Y(p[1])-10}" text-anchor="middle" style="fill:${ink};font-weight:600">${nf(p[1],1)}</text><text x="${a.X(p[0])}" y="${a.t+a.ph+30}" text-anchor="middle">${nf(tn*i,0)} h</text>`; });
+  $("chTank").innerHTML=s;
+  // por tamaño
+  const B=R.bins, nb=B.length, mx=Math.max(...B.map(b=>b.frac))*100;
+  a=axes({W:520,H:260,x0:0,x1:nb,y0:0,y1:100,yt:[0,25,50,75,100],yl:"extracción (%)",xl:"tamaño de partícula (µm)",b:46,r:20,t:30});
+  s=a.s; const bw=a.pw/nb;
+  B.forEach((b,i)=>{ const x=a.l+i*bw; const hm=b.frac*100/ Math.max(mx,1e-9)*a.ph*0.9;
+    s+=`<rect x="${x+bw*0.12}" y="${a.t+a.ph-hm}" width="${bw*0.76}" height="${hm}" fill="${ore}" fill-opacity="0.28"/>`;
+    s+=`<rect x="${x+bw*0.3}" y="${a.Y(b.x*100)}" width="${bw*0.4}" height="${a.t+a.ph-a.Y(b.x*100)}" fill="${au}" rx="2"/>`;
+    if(i%2===0||i===nb-1) s+=`<text x="${x+bw/2}" y="${a.t+a.ph+16}" text-anchor="middle">${b.d<10?nf(b.d,1):nf(b.d)}</text>`;
+    if(b.free===false && i>0 && B[i-1].free) s+=`<line x1="${x}" x2="${x}" y1="${a.t}" y2="${a.t+a.ph}" stroke="${ink}" stroke-dasharray="3 4"/><text x="${Math.min(Math.max(x,150),370)}" y="${a.t-10}" text-anchor="middle" style="fill:${ink}">← oro libre · oro dentro de la partícula →</text>`;
+  });
+  
+  $("chSize").innerHTML=s;
+  // razón CN/O2
+  const x0=0.1,x1=10000, W=520, l=20, r=20, pw=W-l-r, X=v=>l+(Math.log10(v)-Math.log10(x0))/(Math.log10(x1)-Math.log10(x0))*pw, yb=60;
+  s=`<rect x="${l}" y="${yb-14}" width="${X(R.ratioCrit)-l}" height="28" fill="${sol}" fill-opacity="0.12"/><rect x="${X(R.ratioCrit)}" y="${yb-14}" width="${l+pw-X(R.ratioCrit)}" height="28" fill="${au}" fill-opacity="0.12"/>`;
+  s+=`<text x="${l+6}" y="${yb-20}" style="fill:${ink}">controla el cianuro</text><text x="${l+pw-6}" y="${yb-20}" text-anchor="end" style="fill:${ink}">controla el oxígeno</text>`;
+  s+=`<line x1="${X(R.ratioCrit)}" x2="${X(R.ratioCrit)}" y1="${yb-18}" y2="${yb+18}" stroke="${ink}" stroke-dasharray="3 3"/><text x="${X(R.ratioCrit)}" y="${yb+30}" text-anchor="middle">crítico ≈ ${nf(R.ratioCrit,1)}</text>`;
+  [0.1,1,10,100,1000,10000].forEach(v=>{ s+=`<text x="${X(v)}" y="${yb+48}" text-anchor="middle">${nf(v,v<1?1:0)}</text>`; });
+  const xv=Math.min(x1,Math.max(x0,R.ratio));
+  s+=`<path d="M${X(xv)} ${yb-12}l7 12l-7 12l-7 -12z" fill="${ink}"/><text x="${X(xv)}" y="${yb+64}" text-anchor="middle" style="fill:${ink};font-weight:600">[CN⁻]/[O₂] = ${nf(R.ratio,R.ratio<10?1:0)}</text>`;
+  $("chRatio").innerHTML=s;
+  const xr=R.ratio/R.ratioCrit;
+  $("ratioText").textContent = xr>1.5 ? `Hay ${nf(xr,1)} veces el cianuro que el oxígeno puede aprovechar. La velocidad depende del oxígeno: más O₂ (inyección de oxígeno puro) acelera la disolución; más cianuro no.` : xr<0.67 ? `Falta cianuro frente al oxígeno disponible: subir el NaCN acelera la disolución.` : `Cianuro y oxígeno están cerca del balance óptimo de Habashi.`;
+  $("kinLead").textContent=`Con ${nf(R.OD,1)} mg/L de O₂ disuelto (${P.oxi==="aire"?`aire a ${nf(P.alt)} m de altitud y ${nf(P.T)} °C`:"inyección de oxígeno"}), D(O₂) = ${nf(R.DO*1e5,2)}×10⁻⁵ cm²/s. Las partículas gruesas retienen oro poco expuesto y son las que limitan la recuperación.`;
+  // HCN
+  const ph0=8,ph1=12.5; a=axes({W:520,H:150,x0:ph0,x1:ph1,y0:0,y1:100,yt:[0,50,100],xt:[8,9,10,11,12],xf:v=>nf(v),yl:"HCN (%)",xl:"pH",t:10,b:36});
+  s=a.s+`<rect x="${a.X(10.5)}" y="${a.t}" width="${a.X(ph1)-a.X(10.5)}" height="${a.ph}" fill="${good}" fill-opacity="0.08"/><text x="${a.X(11.5)}" y="${a.t+14}" text-anchor="middle" style="fill:${good}">zona de operación segura</text>`;
+  let d=""; for(let i=0;i<=90;i++){ const ph=ph0+(ph1-ph0)*i/90, f=100/(1+Math.pow(10,ph-9.21)); d+=(i?"L":"M")+a.X(ph)+","+a.Y(f); }
+  s+=`<path d="${d}" fill="none" stroke="${crit}" stroke-width="2.2"/>`;
+  const hv=(1-R.fCN)*100; s+=`<circle cx="${a.X(P.ph)}" cy="${a.Y(hv)}" r="5" fill="${crit}" stroke="${panel}" stroke-width="2"/><text x="${a.X(P.ph)+8}" y="${a.Y(hv)-8}" style="fill:${ink};font-weight:600">pH ${nf(P.ph,1)}: ${nf(hv,1)} %</text>`;
+  $("chHCN").innerHTML=s;
+}
+
+/* ---------- balances, equipos, economía ---------- */
+function drawTables(R){
+  const auRows=[["Entra con el mineral",R.auIn],["Sale en el doré",R.auDore],["Queda en el relave sólido",R.auRes],["Se pierde en la solución de relave",R.auSolLoss],["Queda en el carbón sin eluir",R.auCarb]];
+  $("tAu").innerHTML=`<tr><th>Corriente</th><th>g Au/d</th><th>% del alimento</th></tr>`+auRows.map((r,i)=>`<tr><td>${r[0]}</td><td>${nf(r[1],1)}</td><td>${nf(r[1]/R.auIn*100,1)}</td></tr>`).join("");
+  const cl=R.auIn-(R.auDore+R.auRes+R.auSolLoss+R.auCarb);
+  $("closure").innerHTML=`Cierre del balance: entrada − salidas = <b>${nf(cl,3)} g/d</b>. El carbón sin eluir vuelve al circuito; en régimen estacionario se recupera en ciclos posteriores.`;
+  const cn=[["Cianicidas (pirita y calcopirita)",R.consMin],["Volatilización de HCN",R.consVol],["Complejación del oro",R.consAu],["Sale con el relave hacia destrucción",R.consTail]];
+  $("tCN").innerHTML=`<tr><th>Destino</th><th>kg/t</th><th>kg/d</th></tr>`+cn.map(r=>`<tr><td>${r[0]}</td><td>${nf(r[1],r[1]<0.1?3:2)}</td><td>${nf(r[1]*P.cap,1)}</td></tr>`).join("")+`<tr class="tot"><td>Total que hay que dosificar</td><td>${nf(R.nacnT,2)}</td><td>${nf(R.nacnT*P.cap,1)}</td></tr>`;
+  const Vs=P.cap/R.rhos, Vl=R.QL*24;
+  const st=[["Mineral fresco",nf(P.cap,1),"–","–",nf(R.auIn,1),`${nf(P.ley,1)} g/t`],
+    ["Pulpa a lixiviación",nf(P.cap,1),nf(Vl,1),nf(Vs+Vl,1),nf(R.auIn,1),`ρ ${nf(R.rhop,2)} t/m³`],
+    ["Pulpa lixiviada a CIP",nf(P.cap,1),nf(Vl,1),nf(Vs+Vl,1),nf(R.auIn,1),`${nf(R.auLeach/Vl,2)} mg Au/L en solución`],
+    ["Carbón cargado a elución","–","–","–",nf(R.auAds,1),`${nf(P.ads,1)} % del oro disuelto queda en el carbón`],
+    ["Relave a destrucción de CN",nf(P.cap,1),nf(Vl,1),nf(Vs+Vl,1),nf(R.auRes+R.auSolLoss,1),`${nf(P.nacn)} mg/L NaCN libre`]];
+  $("tStreams").innerHTML=`<tr><th>Corriente</th><th>Sólidos (t/d)</th><th>Solución (m³/d)</th><th>Pulpa (m³/d)</th><th>Au (g/d)</th><th>Nota</th></tr>`+st.map(r=>`<tr>${r.map((c,i)=>`<td${i===5?' style="text-align:left;white-space:normal"':""}>${c}</td>`).join("")}</tr>`).join("");
+  const eq=[["Molino de bolas",`${nf(R.tph,2)} t/h · P80 ${nf(P.p80)} µm`,`${nf(R.Egr/24,1)} kW (Bond, W<sub>i</sub> 14 kWh/t)`],
+    ["Tanque de acondicionamiento con cal",`≈ ${nf(R.Qv*1/0.9,1)} m³ (1 h)`,`pH ${nf(P.ph,1)}`],
+    [`Tanques de lixiviación agitados (${P.ntk})`,`${nf(R.Vnom,1)} m³ c/u · ${nf(R.D,2)} m de diámetro × ${nf(R.D*1.1,2)} m`,`${nf(R.Pag/P.ntk,1)} kW c/u · ${nf(P.pw)} W/m³`],
+    [P.oxi==="aire"?"Soplador de aire":"Sistema de inyección de oxígeno",P.oxi==="aire"?`${nf(R.air)} m³/h (0,02 vvm)`:`${nf(R.o2kg)} kg O₂/d`,P.oxi==="aire"?`${nf(R.Eair/24,1)} kW`:`OD ${nf(R.OD,1)} mg/L`],
+    ["Tanques CIP (3)",`${nf(R.Qv/0.9,1)} m³ c/u (1 h)`,`carbón ${nf(P.carb*P.cap/1000,1)} kg/d de reposición`],
+    ["Columna de elución y celda de electrodeposición",`${nf(R.auAds)} g Au/d en carbón`,`elución ${nf(P.elu,1)} %`],
+    ["Reactor de destrucción de cianuro",`${nf(R.Qv/0.9,1)} m³ (1 h)`,`${nf(R.consTail*P.cap)} kg NaCN/d`]];
+  $("tEq").innerHTML=`<tr><th>Equipo</th><th style="text-align:left">Dimensionamiento</th><th style="text-align:left">Operación</th></tr>`+eq.map(r=>`<tr><td>${r[0]}</td><td style="text-align:left">${r[1]}</td><td style="text-align:left">${r[2]}</td></tr>`).join("");
+  const C=R.cost, lab={mineral:"Mineral, regalías y transporte",nacn:"Cianuro de sodio",cal:"Cal",carbon:"Carbón activado",o2:"Oxígeno",energia:"Energía (molienda, agitación, aire)",agua:"Agua",residuos:"Tratamiento de efluentes"};
+  const keys=Object.keys(C).filter(k=>C[k]>0.5);
+  $("tEco").innerHTML=`<tr><th>Concepto</th><th>US$/d</th><th>US$/t</th></tr><tr><td>Ingreso por oro (${nf(R.auDore)} g/d)</td><td>${nf(R.ingreso)}</td><td>${nf(R.ingreso/P.cap,1)}</td></tr>`+keys.map(k=>`<tr><td>${lab[k]}</td><td>−${nf(C[k])}</td><td>−${nf(C[k]/P.cap,1)}</td></tr>`).join("")+`<tr class="tot"><td>Margen operativo</td><td>${nf(R.margen)}</td><td>${nf(R.margen/P.cap,1)}</td></tr>`;
+  const mxc=Math.max(...keys.map(k=>C[k])); const ink=css('--ink'),ore=css('--ore'),au=css('--au');
+  let s=""; const l=170, w=520-l-70; keys.sort((a,b)=>C[b]-C[a]).forEach((k,i)=>{ const y=20+i*29, bw=C[k]/mxc*w; s+=`<text x="${l-8}" y="${y+12}" text-anchor="end" style="fill:${ink}">${lab[k].replace(" (molienda, agitación, aire)","")}</text><rect x="${l}" y="${y}" width="${bw}" height="16" rx="3" fill="${k==="nacn"?au:ore}" fill-opacity="${k==="nacn"?0.9:0.55}"/><text x="${l+bw+6}" y="${y+12}">${nf(C[k])}</text>`; });
+  s=`<text x="0" y="10" style="fill:${ink};font-weight:600">Costos de operación (US$/d)</text>`+s;
+  $("chCost").setAttribute("viewBox",`0 0 520 ${30+keys.length*29}`); $("chCost").innerHTML=s;
+}
+
+/* ---------- sensibilidad ---------- */
+const SWEEP={
+ nacn:{lab:"NaCN libre (mg/L)",vals:[100,150,200,300,400,600,800,1200,2000,3000,5000,8000],log:true},
+ p80:{lab:"P80 (µm)",vals:[45,55,65,75,90,105,120,140,160,180,200]},
+ tau:{lab:"tiempo de residencia total (h)",vals:[6,9,12,16,20,24,30,36,48,60,72]},
+ od:{lab:"O₂ disuelto (mg/L), con oxígeno puro",vals:[8,10,12,14,16,18,20,22,24,26,28,30],set:p=>({...p,oxi:"o2"})},
+ T:{lab:"temperatura (°C)",vals:[10,15,20,25,30,35,40,45]},
+ ntk:{lab:"número de tanques",vals:[1,2,3,4,5,6,7,8]},
+ pw:{lab:"potencia de agitación (W/m³)",vals:[40,60,80,100,140,200,260,320,400]}
+};
+let swTimer=null;
+function drawSweep(){
+  const k=$("sweepVar").value, S=SWEEP[k], cur= k==="od"&&P.oxi!=="o2" ? null : P[k];
+  const res=S.vals.map(v=>{ let p={...P,[k]:v}; if(S.set) p=S.set(p); const r=sim(p); return [v,r.rec*100,r.margen]; });
+  $("sweepNote").textContent= k==="od"&&P.oxi!=="o2" ? "Con aire el OD actual es "+nf(sim(P).OD,1)+" mg/L; el barrido supone inyección de oxígeno puro." : "";
+  const x0=S.vals[0], x1=S.vals[S.vals.length-1], au=css('--au'), ink=css('--ink'), panel=css('--panel'), sol=css('--sol');
+  const xt=S.log?[100,300,1000,3000,8000]:nice(x0,x1,5);
+  const draw=(id,col,idx,yf,yl,color)=>{
+    let y0=Math.min(...res.map(r=>r[idx])), y1=Math.max(...res.map(r=>r[idx])); const pad=(y1-y0)*0.12||1; y0-=pad; y1+=pad;
+    const a=axes({W:520,H:240,x0,x1,xlog:S.log,y0,y1,xt,xf:v=>nf(v),yf,xl:S.lab,yl,l:idx===2?72:52});
+    let s=a.s; s+=`<path d="${res.map((r,i)=>(i?"L":"M")+a.X(r[0])+","+a.Y(r[idx])).join("")}" fill="none" stroke="${color}" stroke-width="2.4"/>`;
+    res.forEach(r=>{ s+=`<circle cx="${a.X(r[0])}" cy="${a.Y(r[idx])}" r="3" fill="${color}"/>`; });
+    if(cur!=null && cur>=x0 && cur<=x1){ const rc=sim(P); const yv= idx===1? rc.rec*100 : rc.margen; s+=`<line x1="${a.X(cur)}" x2="${a.X(cur)}" y1="${a.t}" y2="${a.t+a.ph}" stroke="${ink}" stroke-dasharray="3 4"/><circle cx="${a.X(cur)}" cy="${a.Y(yv)}" r="6" fill="${panel}" stroke="${ink}" stroke-width="2"/><text x="${a.X(cur)>380?a.X(cur)-8:a.X(cur)+8}" y="${a.t+12}" text-anchor="${a.X(cur)>380?"end":"start"}" style="fill:${ink}">operación actual</text>`; }
+    $(id).innerHTML=s;
+  };
+  draw("chSw1",0,1,v=>nf(v,1),"recuperación (%)",au);
+  draw("chSw2",0,2,v=>nf(v/1000,0)+" k","US$/d",sol);
+}
+$("sweepVar").addEventListener("change",drawSweep);
+
+/* ---------- ciclo ---------- */
+function update(){
+  showOutputs();
+  const R=sim(P);
+  drawKPIs(R); drawFlow(R); drawKinetics(R); drawTables(R);
+  clearTimeout(swTimer); swTimer=setTimeout(drawSweep,180);
+}
+buildControls(); syncControls();
+document.querySelector('[data-preset="salas"]').setAttribute("aria-pressed","true");
+update();
+window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change",update);
+})();
+
+</script>
+
+</body>
+</html>
